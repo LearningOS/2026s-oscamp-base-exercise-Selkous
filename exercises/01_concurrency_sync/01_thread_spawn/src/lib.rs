@@ -1,36 +1,38 @@
-//! # Thread Creation
-//!
-//! In this exercise, you will learn how to create threads and pass data between threads.
-//!
-//! ## Concepts
-//! - `std::thread::spawn` creates a new thread
-//! - `move` closures capture variable ownership
-//! - `JoinHandle::join()` waits for thread completion and retrieves return value
-//!
-//! ## Advanced Thread Operations
-//! - **Thread sleep**: `thread::sleep` pauses the current thread.
-//! - **Thread‑local storage**: `thread_local!` macro defines static variables unique to each thread.
-//! - **Thread naming**: `Builder::name` assigns a name for debugging.
-//! - **Thread priority**: Set via `thread::Builder` (platform‑dependent).
-//! - **Thread pools**: Libraries like `rayon` manage thread reuse.
-//! - **Thread communication**: Use `std::sync::mpsc` (multi‑producer single‑consumer) or third‑party crates (e.g., `crossbeam`).
-//! - **Shared state**: `Arc<Mutex<T>>` or `Arc<RwLock<T>>` safely share mutable data across threads.
-//! - **Synchronization primitives**: `Barrier` synchronizes multiple threads, `Condvar` implements condition variables.
-//! - **Thread park/unpark**: `thread::park` blocks a thread, `unpark` wakes it, useful for custom scheduling.
-//! - **Get current thread handle**: `thread::current()`.
-//! - **Scoped threads**: `crossbeam::scope` or standard‑library `thread::scope` (Rust 1.63+) allow threads to borrow stack data without `move`.
-//!
-//! Rust statically prevents data races through the ownership system and the `Send` and `Sync` traits.
-//! Types that implement `Send` can be transferred across thread boundaries.
-//! Types that implement `Sync` can be referenced from multiple threads simultaneously.
-//! Most Rust standard types are `Send + Sync`; exceptions include `Rc<T>` (non‑atomic reference counting) and raw pointers.
-//!
-//! ## Exercise Structure
-//! 1. **Basic exercises** (`double_in_thread`, `parallel_sum`) – introduce fundamental thread creation.
-//! 2. **Advanced exercises** (`named_sleeper`, `increment_thread_local`, `scoped_slice_sum`, `handle_panic`) – explore additional thread operations.
-//! Each function includes a `TODO` comment indicating where you need to write code.
-//! Run `cargo test` to check your implementations.
+// # Thread Creation
+//
+// In this exercise, you will learn how to create threads and pass data between threads.
+//
+// ## Concepts
+// - `std::thread::spawn` creates a new thread
+// - `move` closures capture variable ownership
+// - `JoinHandle::join()` waits for thread completion and retrieves return value
+//
+// ## Advanced Thread Operations
+// - **Thread sleep**: `thread::sleep` pauses the current thread.
+// - **Thread‑local storage**: `thread_local!` macro defines static variables unique to each thread.
+// - **Thread naming**: `Builder::name` assigns a name for debugging.
+// - **Thread priority**: Set via `thread::Builder` (platform‑dependent).
+// - **Thread pools**: Libraries like `rayon` manage thread reuse.
+// - **Thread communication**: Use `std::sync::mpsc` (multi‑producer single‑consumer) or third‑party crates (e.g., `crossbeam`).
+// - **Shared state**: `Arc<Mutex<T>>` or `Arc<RwLock<T>>` safely share mutable data across threads.
+// - **Synchronization primitives**: `Barrier` synchronizes multiple threads, `Condvar` implements condition variables.
+// - **Thread park/unpark**: `thread::park` blocks a thread, `unpark` wakes it, useful for custom scheduling.
+// - **Get current thread handle**: `thread::current()`.
+// - **Scoped threads**: `crossbeam::scope` or standard‑library `thread::scope` (Rust 1.63+) allow threads to borrow stack data without `move`.
+//
+// Rust statically prevents data races through the ownership system and the `Send` and `Sync` traits.
+// Types that implement `Send` can be transferred across thread boundaries.
+// Types that implement `Sync` can be referenced from multiple threads simultaneously.
+// Most Rust standard types are `Send + Sync`; exceptions include `Rc<T>` (non‑atomic reference counting) and raw pointers.
+//
+// ## Exercise Structure
+// 1. **Basic exercises** (`double_in_thread`, `parallel_sum`) – introduce fundamental thread creation.
+// 2. **Advanced exercises** (`named_sleeper`, `increment_thread_local`, `scoped_slice_sum`, `handle_panic`) – explore additional thread operations.
+// Each function includes a `TODO` comment indicating where you need to write code.
+// Run `cargo test` to check your implementations.
 
+use core::borrow;
+use std::{cell, result};
 #[allow(unused_imports)]
 use std::cell::RefCell;
 #[allow(unused_imports)]
@@ -54,7 +56,7 @@ use std::time::Duration;
 ///
 /// fn panic_handling_example() {
 ///     let handle = thread::spawn(|| {
-///         // Simulate a panic
+///       // Simulate a panic
 ///         panic!("Thread panicked!");
 ///     });
 ///
@@ -157,8 +159,18 @@ pub fn double_in_thread(numbers: Vec<i32>) -> Vec<i32> {
     // TODO: Create a new thread to multiply each element of numbers by 2
     // Use thread::spawn and move closure
     // Use join().unwrap() to get result
-    todo!()
+    let handle = thread::spawn(move ||{numbers.into_iter().map(|x| x * 2).collect()});
+    handle.join().unwrap()
 }
+
+// fn example (numbers: Vec<i32>) -> Vec<i32>{
+//     let mut result = Vec::new();
+//     for number in numbers{
+//         result.push(number *2);
+//     }
+//     result
+// }
+
 
 /// Sum two vectors in parallel, returning a tuple of two sums.
 ///
@@ -167,7 +179,17 @@ pub fn double_in_thread(numbers: Vec<i32>) -> Vec<i32> {
 pub fn parallel_sum(a: Vec<i32>, b: Vec<i32>) -> (i32, i32) {
     // TODO: Create two threads to sum a and b respectively
     // Join both threads to get results
-    todo!()
+    let handle_a = thread::spawn(move || {
+        a.into_iter().sum::<i32>()
+    });
+    let handle_b = thread::spawn(move || {
+        b.into_iter().sum::<i32>()
+    });
+
+    let sum_a = handle_a.join().unwrap();
+    let sum_b = handle_b.join().unwrap();
+
+    (sum_a, sum_b)
 }
 
 // ============================================================================
@@ -177,7 +199,7 @@ pub fn parallel_sum(a: Vec<i32>, b: Vec<i32>) -> (i32, i32) {
 /// Create a named thread that sleeps for the given milliseconds and then returns the input value.
 ///
 /// The thread should be named `"sleeper"`. Use `thread::Builder` to set the name.
-/// Inside the thread, call `thread::sleep(Duration::from_millis(ms))` before returning `value`.
+/// Inside the thread, call `thread::sleep(Duration::from_millis(ms))` before returning `value`. // 傻逼这里都写了看不到是吧
 ///
 /// Hint: `thread::sleep` causes the current thread to block; it does not affect other threads.
 #[allow(unused_variables)]
@@ -185,7 +207,13 @@ pub fn named_sleeper(value: i32, ms: u64) -> i32 {
     // TODO: Create a thread builder with name "sleeper"
     // TODO: Spawn a thread that sleeps for `ms` milliseconds and returns `value`
     // TODO: Join the thread and return the value
-    todo!()
+    let bulider = thread::Builder::new().name("sleeper".into());
+    let handle = bulider.spawn(move || {
+        thread::sleep(Duration::from_millis(ms));
+        value
+    }).unwrap();
+
+    handle.join().unwrap()
 }
 
 thread_local! {
@@ -200,7 +228,11 @@ thread_local! {
 /// Hint: Use `THREAD_COUNT.with(|cell| { ... })` to access the thread‑local variable.
 pub fn increment_thread_local() -> usize {
     // TODO: Use THREAD_COUNT.with to increment and return the new count
-    todo!()
+    THREAD_COUNT.with(|cell|{
+        let mut count = cell.borrow_mut();
+        *count += 1;
+        *count
+    })
 }
 
 /// Spawn two threads using a **scoped thread** to compute the sum of two slices without moving ownership.
@@ -216,7 +248,12 @@ pub fn scoped_slice_sum(a: &[i32], b: &[i32]) -> (i32, i32) {
     // TODO: Use thread::scope to spawn two threads
     // TODO: Each thread sums its slice
     // TODO: Wait for both threads and return the results
-    todo!()
+    thread::scope(|s|{
+        let handle_a = s.spawn(||{a.iter().sum::<i32>()});
+        let handle_b = s.spawn(||{b.iter().sum::<i32>()});
+        
+        (handle_a.join().unwrap(), handle_b.join().unwrap())
+    })
 }
 
 /// Handle a possible panic in a spawned thread.
@@ -233,7 +270,14 @@ pub fn scoped_slice_sum(a: &[i32], b: &[i32]) -> (i32, i32) {
 pub fn handle_panic(value: i32, should_panic: bool) -> Result<i32, ()> {
     // TODO: Spawn a thread that either panics or returns value
     // TODO: Join and map the result appropriately
-    todo!()
+    let handle = thread::spawn(move ||{
+        if should_panic {
+            panic!("opps")
+        }
+        value
+    });
+
+    handle.join().map_err(|e| ())
 }
 
 #[cfg(test)]
