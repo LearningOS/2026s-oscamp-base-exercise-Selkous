@@ -50,21 +50,39 @@ pub fn concurrent_collect(n_threads: usize) -> Vec<usize> {
     // TODO: After joining all threads, sort the result and return
     let shared_vec = Arc::new(Mutex::new(Vec::new()));
     let mut handles = vec![];
-    for i in 0..n_threads {
-        let shared_vec_clone = Arc::clone(&shared_vec);
+    for i in 0..n_threads{
+        let vec_clone = Arc::clone(&shared_vec);
         let handle = thread::spawn(move || {
-            let mut vec = shared_vec_clone.lock().unwrap();
+            let mut vec = vec_clone.lock().unwrap();
             vec.push(i);
         });
         handles.push(handle);
-}
-    for handle in handles {
+    }
+    for handle in handles{
         handle.join().unwrap();
     }
     let mut result = shared_vec.lock().unwrap().clone();
     result.sort();
     result
 }
+
+// let shared_vec = Arc::new(Mutex::new(Vec::new()));
+//     let mut handles = vec![];
+//     for i in 0..n_threads {
+//         let shared_vec_clone = Arc::clone(&shared_vec);
+//         let handle = thread::spawn(move || {
+//             let mut vec = shared_vec_clone.lock().unwrap();
+//             vec.push(i);
+//         });
+//         handles.push(handle);
+// }
+//     for handle in handles {
+//         handle.join().unwrap();
+//     }
+//     let mut result = shared_vec.lock().unwrap().clone();
+//     result.sort();
+//     result
+
 #[cfg(test)]
 mod tests {
     use super::*;
