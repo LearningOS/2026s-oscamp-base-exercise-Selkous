@@ -143,8 +143,8 @@ unsafe impl GlobalAlloc for FreeListAllocator {
         let mut current_next = self.bump_next.load(Ordering::SeqCst);
 
         loop {
-            let aligned_addr = (current_next + align + 1) & !(align + 1);
-            let alloc_end = layout.size();
+            let aligned_addr = (current_next + align - 1) & !(align - 1);
+            let alloc_end = aligned_addr + layout.size();
 
             if alloc_end > self.heap_end {
                 return null_mut();
