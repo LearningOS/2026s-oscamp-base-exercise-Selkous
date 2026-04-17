@@ -42,7 +42,8 @@ impl<T> SpinLock<T> {
     pub fn lock(&self) -> &mut T {
         // TODO
         loop {
-            match self.locked.compare_exchange(false, 
+            match self.locked.compare_exchange(
+                false, 
                 true, 
                 Ordering::Acquire, 
                 Ordering::Relaxed) {
@@ -70,7 +71,8 @@ impl<T> SpinLock<T> {
     /// Returns Some(&mut T) on success, None if lock is busy.
     pub fn try_lock(&self) -> Option<&mut T> {
         // TODO: Single compare_exchange attempt
-        match self.locked.compare_exchange(false, 
+        match self.locked.compare_exchange(
+            false, 
                 true, 
                 Ordering::Acquire, 
                 Ordering::Relaxed) {
