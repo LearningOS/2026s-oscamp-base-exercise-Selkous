@@ -17,6 +17,7 @@
 // #![cfg(target_arch = "riscv64")]
 
 use core::arch::naked_asm;
+use std::io::Cursor;
 
 /// Per-thread stack size. Slightly larger to avoid overflow under QEMU / test harness.
 const STACK_SIZE: usize = 1024 * 128;
@@ -137,7 +138,23 @@ impl Scheduler {
     ///    `sp` must be 16-byte aligned (e.g. `(stack_top - 16) & !15` to leave headroom).
     /// 3. Push a `GreenThread` with this context, state `Ready`, and `entry` stored for the wrapper to call.
     pub fn spawn(&mut self, entry: extern "C" fn()) {
-        todo!("alloc stack, init ctx with ra=thread_wrapper and aligned sp, push GreenThread(Ready, entry)")
+        let mut stack = vec![0u8; STACK_SIZE];
+
+        let stack_top = stack.as_mut_ptr() as u64 + STACK_SIZE as u64;
+        let sp = (stack_top - 16) & !15;
+
+        let mut ctx = TaskContext::default();
+        ctx.sp = sp;
+        ctx.ra = thread_wrapper as u64;
+
+        let thread = GreenThread {
+            ctx,
+            state: ThreadState::Ready,
+            _stack: Some(stack),
+            entry: Some(entry),
+        };
+
+        self.threads.push(thread);
     }
 
     /// Run the scheduler until all threads (except the main one) are `Finished`.
@@ -146,12 +163,73 @@ impl Scheduler {
     /// 2. Loop: if all threads in `threads[1..]` are `Finished`, break; otherwise call `schedule_next()` (which may switch away and later return).
     /// 3. Clear `SCHEDULER` when done.
     pub fn run(&mut self) {
-        todo!("set SCHEDULER to self, loop until threads[1..] all Finished, call schedule_next, then clear SCHEDULER")
+        // 将全局SCHEDULER指向当前实例
+        unsafe {
+            SCHEDULER = self as *mut Scheduler;
+        }
+
+        // 只要有非main线程存活，就循环调度
+        loop {
+            // 检查（除了0的mian）状态是否都是finished
+            let all_finished = self.threads[1..]
+                .iter()
+                .all(|t| t.state == ThreadState::Finished);
+            
+            if all_finished {
+                break;
+            }
+            
+            //调用调度逻辑执行其他状态的代码
+            self.schedule_next();
+        }
+
+        // 执行完毕清空全局调度器指针
+        unsafe {
+            SCHEDULER = std::ptr::null_mut();
+        }
     }
 
     /// Find the next ready thread (starting from `current + 1` round-robin), mark current as `Ready` (if not `Finished`), mark next as `Running`, set `CURRENT_THREAD_ENTRY` if the next thread has an entry, then switch to it.
     fn schedule_next(&mut self) {
-        todo!("round-robin find next Ready, set current Ready (if not Finished), next Running, CURRENT_THREAD_ENTRY, then switch_context")
+        let current = self.current;
+        let len = self.threads.len();
+        let mut next = (current + 1) % len;
+
+        // 1. 轮询 (Round-robin) 寻找下一个 Ready 状态的线程
+        while next != current {
+            if self.threads[next].state == ThreadState::Ready {
+                break;
+            }
+            next = (next + 1) % len;
+        }
+
+        // 如果转了一圈发现只有当前线程可执行，那就直接返回继续执行当前线程
+        if next == current && self.threads[current].state == ThreadState::Running {
+            return;
+        }
+
+        // 2. 更新两者的状态
+        if self.threads[current].state == ThreadState::Running {
+            self.threads[current].state = ThreadState::Ready;
+        }
+        self.threads[next].state = ThreadState::Running;
+
+        // 3. 将新线程的内部函数地址交接给全局变量，供 wrapper 执行
+        unsafe {
+            CURRENT_THREAD_ENTRY = self.threads[next].entry;
+        }
+
+        // 4. 获取两个线程的 context 裸指针，解决生命周期借用冲突
+        let old_ctx = self.threads[current].ctx.as_mut_ptr();
+        let new_ctx = self.threads[next].ctx.as_ptr();
+
+        // 更新索引记录
+        self.current = next;
+
+        // 5. 执行底层的上下文切换运算
+        unsafe {
+            switch_context(&mut *old_ctx, &*new_ctx);
+        }
     }
 }
 
