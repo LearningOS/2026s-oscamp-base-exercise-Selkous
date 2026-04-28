@@ -59,7 +59,7 @@ pub async fn fan_in(n_producers: usize) -> Vec<String> {
         let tx_clone = tx.clone();
         tokio::spawn(async move {
             tx_clone.send(format!("producer {i}: message")).await
-        }); // tx_clone will drop in here
+        }); // tx_clone will be dropped here
     }
     drop(tx);
 
