@@ -237,7 +237,7 @@ impl Mmu {
         if let Some((_, mapping)) = self
             .page_table
             .iter()
-            .find(|(asid, mapping)| *asid == self.current_asid && mapping == vpn) 
+            .find(|(asid, mapping)| *asid == self.current_asid && mapping.vpn == vpn) 
             {
             self.tlb
                 .insert(vpn, mapping.ppn, self.current_asid, mapping.flags);
